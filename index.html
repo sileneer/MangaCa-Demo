@@ -313,8 +313,8 @@
         else
           hintPainter.undo()
       }
-      else if (evtobj.ctrlKey && evtobj.keyCode == 31) {
-        apiURL = prompt('Enter new API url:')
+      else if (evtobj.ctrlKey && evtobj.keyCode == 65) {
+        apiURL = prompt(`Update API url [${apiURL || 'NULL'}]:`)
       }
     }
   </script>
