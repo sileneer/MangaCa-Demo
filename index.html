@@ -1,0 +1,345 @@
+<html>
+  <style>
+    body {
+      position: relative;
+      background-color: black;
+    }
+    .img_box {
+      float: left;
+      width: 90vh;
+      height: 90vh;
+      margin-left: calc((100vw - 90vh * 2) / 3 - 0.75vw);
+      margin-top: 3vh;
+      border: 5px solid white;
+      border-radius: 5vh;
+      overflow: hidden;
+    }
+    #src_container {
+      position: relative;
+      text-align: center;
+      font-size: 2rem;
+      color: white;
+    }
+    #src_image {
+      width: 100%;
+      height: 100%;
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    #canvas {
+      width: 100%;
+      height: auto;
+      position: absolute;
+      background-color: transparent;
+      top: 0;
+      left: 0;
+    }
+    .img {
+      transition: 0.25s;
+      background-color: #111111;
+      object-fit: contain;
+    }
+    #src_label {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+    #paint_btn {
+      background-image: url(ic_paint.png);
+      background-position: 0% 0%;
+      background-size: 100% 100%;
+      background-repeat: no-repeat;
+      background-color: black;
+      border-style: none;
+      width: 70px;
+      height: 70px;
+      position: absolute;
+      border-radius: 50px;
+      top: calc(50% - 40px - 35px);
+      left: calc(50% - 35px);
+    }
+    #picker_btn {
+      border-style: none;
+      width: 70px;
+      height: 70px;
+      position: absolute;
+      border-radius: 50px;
+      top: calc(50% + 40px - 35px);
+      left: calc(50% - 35px);
+    }
+    #block {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      text-align: center;
+      line-height: 100vh;
+      font-size: 2rem;
+      color: white;
+      display: none;
+      background-color: rgba(0, 0, 0, 0.8);
+      transition: 0.25s;
+    }
+  </style>
+
+  <script>
+    let currentImage, currentImageType, currentImageSize, apiURL
+
+    // refs to UI elems
+    let elems
+    const initElems = () => {
+      elems = {
+        srcImage: document.getElementById('src_image'),
+        srcLabel: document.getElementById('src_label'),
+        paintBtn: document.getElementById('paint_btn'),
+        dstImage: document.getElementById('dst_image'),
+        block: document.getElementById('block'),
+        canvas: document.getElementById('canvas')
+      }
+    }
+
+    // UI modifiers
+    const ui = {
+      setSrcHighlighted: function(flag) {
+        const elemStyle = elems.srcImage.style
+        elemStyle.backgroundColor = flag ? '#222222' : '#111111'
+      }
+    }
+
+    // utility functions
+    const utils = {
+      isValidType: function(file) {
+        const validExt = ['image/jpeg', 'image/png', 'image/tiff']
+        return validExt.includes(file.type)
+      }
+    }
+
+    const hexToRGBArray = hex => hex.match(/[A-Za-z0-9]{2}/g).map(v => parseInt(v, 16));
+
+    // handlers called by DOM
+    const handlers = {
+      onDrop: function(e) {
+        ui.setSrcHighlighted(false)
+        e.preventDefault()
+
+        // load and validate
+        let file = e.dataTransfer.files[0]
+        if(!utils.isValidType(file)) {
+          alert('Only images of jpeg/png/tiff formats are supported!')
+          return
+        }
+
+        // read as base64
+        let reader = new FileReader()
+        reader.onload = () => {
+          currentImage = reader.result
+          currentImageType = file.type
+          const image = new Image()
+          image.onload = function() {
+            currentImageSize = {
+              width: this.width,
+              height: this.height
+            }
+          }
+          image.src = currentImage
+          elems.srcImage.src = reader.result
+          elems.srcLabel.style.display = 'none'
+          elems.paintBtn.style.display = 'block'
+        }
+        reader.readAsDataURL(file)
+      },
+
+      onDragOver: function(e) {
+        ui.setSrcHighlighted(true)
+        e.preventDefault()
+        return false
+      },
+
+      onDragLeave: function(e) {
+        ui.setSrcHighlighted(false)
+      },
+
+      onSubmitClick: async function() {
+        elems.block.style.display = 'block'
+
+        // gather payload
+        const payload = {
+          imageType: currentImageType,
+          image: currentImage,
+          hint_points: hintPainter.currentHintPoints()
+        }
+
+        // fetch api
+        try {
+          const response = await fetch(apiURL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+          })
+          const imageDataURL = await response.text()
+          if(imageDataURL.substring(0, 4) != 'data') {
+            // alert error
+            alert(imageDataURL)
+          }
+          else {
+            // display image
+            elems.dstImage.src = imageDataURL
+          }
+        }
+        catch(error) {
+          alert(error)
+        }
+        finally {
+          elems.block.style.display = 'none'
+        }
+      },
+
+      onCanvasClick: function(e) {
+        hintPainter.drawForClickIfPossible(e)
+      },
+
+      onColorUpdate: function(jscolor) {
+        const hex = jscolor.toString()
+        hintPainter.color = hexToRGBArray(hex)
+      }
+    }
+
+    // drawing utils
+    const hintPainter = {
+      snapshots: new Array(),
+      points: new Array(),
+      step: -1,
+      color: [255, 0, 0],
+
+      pushSnapshot: function() {
+        this.step++
+        if (this.step < this.snapshots.length)
+          this.snapshots.length = this.step
+        if (this.step-1 < this.points.length)
+          this.points.length = Math.max(this.step - 1, 0)
+        this.snapshots.push(elems.canvas.toDataURL())
+      },
+
+      drawSnapshot: function(){
+        const canvasPic = new Image()
+        canvasPic.src = this.snapshots[this.step]
+        const ctx = elems.canvas.getContext('2d')
+        ctx.clearRect(0, 0, elems.canvas.width, elems.canvas.height)
+        canvasPic.onload = ()=> {
+          ctx.drawImage(canvasPic, 0, 0)
+        }
+      },
+
+      undo: function() {
+        if (this.step > 0) {
+          this.step--
+          this.drawSnapshot()
+        }
+      },
+
+      redo: function() {
+        if (this.step < this.snapshots.length-1) {
+          this.step++
+          this.drawSnapshot()
+        }
+      },
+
+      pointInRect: function(point, rect) {
+        const minX = rect.x, minY = rect.y, maxX = rect.x + rect.width, maxY = rect.y + rect.height
+        return minX <= point.x && point.x <= maxX &&
+              minY <= point.y && point.y <= maxY
+      },
+
+      // returns the points that are currently visible to the user / aka the current hint
+      currentHintPoints: function() {
+        return this.points.slice(0, this.step)
+      },
+
+      drawPixel: function(point) {
+        const ctx = elems.canvas.getContext('2d')
+        ctx.fillStyle = "rgb(" + this.color[0] + "," + this.color[1] + "," + this.color[2] + ")"
+        ctx.fillRect(point.x, point.y, 4, 4)
+      },
+
+      drawForClickIfPossible: function(e) {
+        if (currentImage === undefined)
+          return
+        const position = { x: e.offsetX, y: e.offsetY }
+        const imageDims = currentImageSize
+        const srcContainerDims = { width: elems.srcImage.clientWidth, height: elems.srcImage.clientHeight }
+        // check to see if click is within image frame
+        // 1st, get rect of image in proportion to the size of canvas
+        const scaleFactor = Math.min(srcContainerDims.width / imageDims.width, srcContainerDims.height / imageDims.height)
+        const displayedImageDims = {
+          width: imageDims.width * scaleFactor / srcContainerDims.width,
+          height: imageDims.height * scaleFactor / srcContainerDims.height
+        }
+        const paddings = { h: (1.0 - displayedImageDims.width) / 2, v: (1.0 - displayedImageDims.height) / 2 }
+        const imageRect = { x: paddings.h, y: paddings.v, ...displayedImageDims }
+        const clickPoint = { x: position.x / srcContainerDims.width, y: position.y / srcContainerDims.height }
+        // check it click is in rect of image
+        if (this.pointInRect(clickPoint, imageRect)) {
+          // translate click to canvas's display coordinate
+          const canvasPoint = { x: clickPoint.x * canvas.width, y: clickPoint.y * canvas.height }
+          this.drawPixel(canvasPoint)
+          // save a snapshot of the current canvas
+          this.pushSnapshot()
+          // record point
+          const r = this.color[0], g = this.color[1], b = this.color[2]
+          const coloredPixelInImage = [
+            (clickPoint.x - imageRect.x) / imageRect.width,
+            (clickPoint.y - imageRect.y) / imageRect.height,
+            r, g, b
+          ]
+          this.points.push(coloredPixelInImage)
+        }
+        else
+          alert('You can only draw within the image\'s bounds')
+      }
+    }
+    window.beforeunload = function(e) {
+      return "Sure you want to leave?"
+    }
+    document.onkeydown = (e) => {
+      const evtobj = window.event ? event : e
+      // redo / undo controls
+      if (evtobj.keyCode == 90 && evtobj.ctrlKey) {
+        if (evtobj.shiftKey)
+          hintPainter.redo()
+        else
+          hintPainter.undo()
+      }
+      else if (evtobj.ctrlKey && evtobj.keyCode == 31) {
+        apiURL = prompt('Enter new API url:')
+      }
+    }
+  </script>
+
+  <script src="jscolor.js"></script>
+  <body onload="initElems();hintPainter.pushSnapshot()">
+    <div id="src_container" class="img_box">
+      <image id="src_image" class="img"
+      />
+      <canvas id="canvas"
+        ondrop="handlers.onDrop(event)"
+        ondragover="handlers.onDragOver(event)"
+        ondragleave="handlers.onDragLeave(event)"
+        onclick="handlers.onCanvasClick(event)"
+        width="800px"
+        height="800px">
+      </canvas>
+      <p id="src_label">
+        Drop the sketch image here.
+      </p>
+    </div>
+    <button id="paint_btn" onclick="handlers.onSubmitClick()"></button>
+    <button id="picker_btn" class="jscolor {onFineChange:'handlers.onColorUpdate(this)'}"></button>
+    <image id="dst_image" class="img_box img" />
+    <div id="block">Loading, please wait...</div>
+  </body>
+
+</html>
