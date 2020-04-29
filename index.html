@@ -1,6 +1,25 @@
 <html>
   <meta charset="utf-8">
   <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />
+
+  <script src="https://www.gstatic.com/firebasejs/7.14.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/7.14.2/firebase-firestore.js"></script>
+
+  <script>
+    var firebaseConfig = {
+      apiKey: "AIzaSyCCwK-yOOMp06zF5J_duy1nirQ8lRH7JBY",
+      authDomain: "nacl-15d2e.firebaseapp.com",
+      databaseURL: "https://nacl-15d2e.firebaseio.com",
+      projectId: "nacl-15d2e",
+      storageBucket: "nacl-15d2e.appspot.com",
+      messagingSenderId: "331808271376",
+      appId: "1:331808271376:web:d6aded56a86a76855d2e95"
+    }
+
+    firebase.initializeApp(firebaseConfig)
+    var db = firebase.firestore()
+  </script>
+
   <style>
     body {
       position: relative;
@@ -115,22 +134,14 @@
 
   <script>
 
-    function setCookie(name, value) {
-      document.cookie = name + "=" + (value || "")  + "; path=/"
-    }
+    let currentImage, currentImageType, currentImageSize
+    var apiURLs = []
 
-    function getCookie(name) {
-      let nameEQ = name + "="
-      let ca = document.cookie.split(';')
-      for(let i=0; i < ca.length; i++) {
-        let c = ca[i]
-        while (c.charAt(0)==' ') c = c.substring(1,c.length);
-        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length)
-      }
-      return null
-    }
-
-    let currentImage, currentImageType, currentImageSize, apiURL = getCookie('NaCl')
+    // get api urls
+    db.collection('APIs').onSnapshot(querySnapshot => {
+      apiURLs = []
+      querySnapshot.forEach(doc => apiURLs.push(doc.data().url))
+    })
 
     // refs to UI elems
     let elems
@@ -228,6 +239,7 @@
 
         // fetch api
         try {
+          const apiURL = apiURLs[Math.floor(Math.random() * apiURLs.length)]
           const response = await fetch('https://cors-anywhere.herokuapp.com/' + apiURL, {
             method: 'POST',
             headers: {
@@ -273,7 +285,7 @@
       snapshots: new Array(),
       points: new Array(),
       step: -1,
-      color: [255, 0, 0],
+      color: [255, 255, 255],
 
       pushSnapshot: function() {
         this.step++
