@@ -1,20 +1,23 @@
 <html>
+  <meta charset="utf-8">
+  <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css?family=Open+Sans" />
   <style>
     body {
       position: relative;
       background-color: black;
+      font-family: "Open Sans";
     }
     .img_box {
       float: left;
-      width: 90vh;
-      height: 90vh;
-      margin-left: calc((100vw - 90vh * 2) / 3 - 0.75vw);
-      margin-top: 3vh;
+      width: 42.5vw;
+      height: 42.5vw;
+      margin-top: calc((100vh - 42.5vw)/2);
       border: 5px solid white;
       border-radius: 5vh;
       overflow: hidden;
     }
     #src_container {
+      margin-left: 2.35vw;
       position: relative;
       text-align: center;
       font-size: 2rem;
@@ -46,6 +49,14 @@
       left: 50%;
       transform: translate(-50%, -50%);
     }
+    #buttons_container {
+      width: 5vw;
+      height: 3vh;
+      margin-top: 25vh;
+      margin-left: 1.5vw;
+      margin-right: 1.5vw;
+      float: left;
+    }
     #paint_btn {
       background-image: url(ic_paint.png);
       background-position: 0% 0%;
@@ -57,7 +68,7 @@
       height: 70px;
       position: absolute;
       border-radius: 50px;
-      top: calc(50% - 40px - 35px);
+      top: calc(37vh - 40px - 35px);
       left: calc(50% - 35px);
     }
     #picker_btn {
@@ -66,8 +77,26 @@
       height: 70px;
       position: absolute;
       border-radius: 50px;
-      top: calc(50% + 40px - 35px);
+      top: calc(47vh + 40px - 35px);
       left: calc(50% - 35px);
+    }
+    #file_input {
+      display: none;
+    }
+    #image_upload_btn {
+      position: absolute;
+      width: 45px;
+      height: 45px;
+      top: calc(57vh + 110px - 45px/2);
+      left: calc(50% - 45px/2);
+    }
+    #image_upload_btn_lbl {
+      width: 100%;
+      height: 100%;
+    }
+    #image_upload_btn_img {
+      width: 100%;
+      height: 100%;
     }
     #block {
       position: fixed;
@@ -85,7 +114,23 @@
   </style>
 
   <script>
-    let currentImage, currentImageType, currentImageSize, apiURL
+
+    function setCookie(name, value) {
+      document.cookie = name + "=" + (value || "")  + "; path=/"
+    }
+
+    function getCookie(name) {
+      let nameEQ = name + "="
+      let ca = document.cookie.split(';')
+      for(let i=0; i < ca.length; i++) {
+        let c = ca[i]
+        while (c.charAt(0)==' ') c = c.substring(1,c.length);
+        if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length)
+      }
+      return null
+    }
+
+    let currentImage, currentImageType, currentImageSize, apiURL = getCookie('NaCl')
 
     // refs to UI elems
     let elems
@@ -96,7 +141,8 @@
         paintBtn: document.getElementById('paint_btn'),
         dstImage: document.getElementById('dst_image'),
         block: document.getElementById('block'),
-        canvas: document.getElementById('canvas')
+        canvas: document.getElementById('canvas'),
+        fileInput: document.getElementById('file_input')
       }
     }
 
@@ -120,12 +166,7 @@
 
     // handlers called by DOM
     const handlers = {
-      onDrop: function(e) {
-        ui.setSrcHighlighted(false)
-        e.preventDefault()
-
-        // load and validate
-        let file = e.dataTransfer.files[0]
+      loadFileIfPossible: function(file) {
         if(!utils.isValidType(file)) {
           alert('Only images of jpeg/png/tiff formats are supported!')
           return
@@ -151,6 +192,15 @@
         reader.readAsDataURL(file)
       },
 
+      onDrop: function(e) {
+        ui.setSrcHighlighted(false)
+        e.preventDefault()
+
+        // load and validate
+        let file = e.dataTransfer.files[0]
+        this.loadFileIfPossible(file)
+      },
+
       onDragOver: function(e) {
         ui.setSrcHighlighted(true)
         e.preventDefault()
@@ -162,6 +212,11 @@
       },
 
       onSubmitClick: async function() {
+        if (currentImage == null) {
+          alert('你还没有选择姨梅纸。')
+          return
+        }
+
         elems.block.style.display = 'block'
 
         // gather payload
@@ -173,11 +228,8 @@
 
         // fetch api
         try {
-          const response = await fetch(apiURL, {
+          const response = await fetch('https://cors-anywhere.herokuapp.com/' + apiURL, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
             body: JSON.stringify(payload)
           })
           const imageDataURL = await response.text()
@@ -205,6 +257,11 @@
       onColorUpdate: function(jscolor) {
         const hex = jscolor.toString()
         hintPainter.color = hexToRGBArray(hex)
+      },
+
+      onSelect: function(e) {
+        const files = elems.fileInput.files
+        this.loadFileIfPossible(files[0])
       }
     }
 
@@ -306,7 +363,6 @@
     }
     document.onkeydown = (e) => {
       const evtobj = window.event ? event : e
-      // redo / undo controls
       if (evtobj.keyCode == 90 && evtobj.ctrlKey) {
         if (evtobj.shiftKey)
           hintPainter.redo()
@@ -315,6 +371,7 @@
       }
       else if (evtobj.ctrlKey && evtobj.keyCode == 65) {
         apiURL = prompt(`Update API url [${apiURL || 'NULL'}]:`)
+        setCookie('NaCl', apiURL)
       }
     }
   </script>
@@ -324,6 +381,9 @@
     <div id="src_container" class="img_box">
       <image id="src_image" class="img"
       />
+      <p id="src_label">
+        Drop the sketch image here.
+      </p>
       <canvas id="canvas"
         ondrop="handlers.onDrop(event)"
         ondragover="handlers.onDragOver(event)"
@@ -332,12 +392,17 @@
         width="800px"
         height="800px">
       </canvas>
-      <p id="src_label">
-        Drop the sketch image here.
-      </p>
     </div>
-    <button id="paint_btn" onclick="handlers.onSubmitClick()"></button>
-    <button id="picker_btn" class="jscolor {onFineChange:'handlers.onColorUpdate(this)'}"></button>
+    <div id="buttons_container">
+      <button id="paint_btn" onclick="handlers.onSubmitClick()"></button>
+      <button id="picker_btn" class="jscolor {onFineChange:'handlers.onColorUpdate(this)'}"></button>
+      <div id="image_upload_btn">
+        <label for="file_input" id="image_upload_btn_lbl">
+          <img src="ic_upload.svg" id="image_upload_btn_img"/>
+        </label>
+        <input id="file_input" type="file" accept="image/*" onchange="handlers.onSelect(event)"/>
+      </div>
+    </div>
     <image id="dst_image" class="img_box img" />
     <div id="block">Loading, please wait...</div>
   </body>
