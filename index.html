@@ -240,7 +240,7 @@
         // fetch api
         try {
           const apiURL = apiURLs[Math.floor(Math.random() * apiURLs.length)]
-          const response = await fetch('https://cors-anywhere.herokuapp.com/' + apiURL, {
+          const response = await fetch(apiURL, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
