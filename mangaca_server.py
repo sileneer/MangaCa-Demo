@@ -93,7 +93,7 @@ with tf.device('/gpu:0'):
     painter_op = VGG2RGB(head_temp)
     painter_alt_op = VGG2RGB(neck_temp)
 
-    ip3B = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 3))
+    ip3B = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, None, None, 3))
 
     print('Loading UpRes')
     # short image upscaling net
@@ -355,6 +355,8 @@ def main():
     img_data = base64.b64decode(post_data['image'].split(',')[1])
     ext = 'png'
 
+    if not os.path.isdir('tmp'):
+        os.mkdir('tmp')
     tmp_path = 'tmp/mangaca_%d.%s' % (random.randint(0, 10000000), ext)
     with open(tmp_path, 'wb') as tmp_file:
         tmp_file.write(img_data)
