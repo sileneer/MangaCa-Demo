@@ -1,3 +1,5 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'  # mute all the cuda device warnings
 import tensorflow as tf
 import keras
 import numpy as np
@@ -46,11 +48,11 @@ session = keras.backend.get_session()
 
 with tf.device('/gpu:0'):
     # network inputs
-    ipa = tf.placeholder(dtype=tf.float32, shape=(None, 1))
-    ip1 = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 1))
-    ip3 = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 3))
-    ip4 = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 4))
-    ip3x = tf.placeholder(dtype=tf.float32, shape=(None, None, None, 3))
+    ipa = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, 1))
+    ip1 = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, None, None, 1))
+    ip3 = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, None, None, 3))
+    ip4 = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, None, None, 4))
+    ip3x = tf.compat.v1.placeholder(dtype=tf.float32, shape=(None, None, None, 3))
 
     print('Loading Apprentice Ini')
     # global hint generator
@@ -86,7 +88,7 @@ with tf.device('/gpu:0'):
     # alt for head.net, employs the same structure but has diff weights set
     painter_alt = load_model('Models/painter_alt.net')
     nil2, nil3, neck_temp = painter_alt(feed)
-    feed[0] = tf.clip_by_value(1 - tf.image.resize_bicubic(ToGray(VGG2RGB(head_temp) / 255.0), tf.shape(ip1)[1:3]), 0.0, 1.0)
+    feed[0] = tf.clip_by_value(1 - tf.compat.v1.image.resize_bicubic(ToGray(VGG2RGB(head_temp) / 255.0), tf.shape(ip1)[1:3]), 0.0, 1.0)
     nil4, nil5, head_temp = painter_alt(feed)
     painter_op = VGG2RGB(head_temp)
     painter_alt_op = VGG2RGB(neck_temp)
@@ -110,6 +112,24 @@ feature_extractor.load_weights('Models/feature_extractor.net')
 apprentice_ini.load_weights('Models/apprentice_ini.net')
 
 print('Init Completed')
+print('\nApprentice_ini model:')
+apprentice_ini.summary()
+# tf.keras.utils.plot_model(apprentice_ini, to_file='apprentice_ini.png', show_shapes=True)
+print('\nApprentice model:')
+apprentice.summary()
+# tf.keras.utils.plot_model(apprentice, to_file='apprentice.png', show_shapes=True)
+print('\nfeature_extractor model:')
+feature_extractor.summary()
+# tf.keras.utils.plot_model(feature_extractor, to_file='feature_extractor.png', show_shapes=True)
+print('\npainter model:')
+painter.summary()
+# tf.keras.utils.plot_model(painter, to_file='painter.png', show_shapes=True)
+print('\npainter_alt model:')
+painter_alt.summary()
+# tf.keras.utils.plot_model(painter_alt, to_file='painter_alt.png', show_shapes=True)
+print('\nup_res model:')
+up_res.summary()
+# tf.keras.utils.plot_model(up_res, to_file='up_res.png', show_shapes=True)
 
 
 def run_painter(sketch, global_hint, local_hint, global_hint_x, alpha):
@@ -249,7 +269,7 @@ def clip_15(x, s=15.0):
 
 
 def ini_hint(x):
-    r = np.zeros(shape=(x.shape[0], x.shape[1], 4), dtype=np.float)
+    r = np.zeros(shape=(x.shape[0], x.shape[1], 4), dtype=float)
     return r
 
 
@@ -311,7 +331,6 @@ import cgi
 import json
 import base64
 import random
-import os
 import requests
 
 # flask

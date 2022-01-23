@@ -7,3 +7,5 @@ scikit-image~=0.19.1
 Flask~=2.0.2
 flask_cors
 h5py==2.10.0
+pydot
+graphviz
