@@ -135,13 +135,13 @@
   <script>
 
     let currentImage, currentImageType, currentImageSize
-    var apiURLs = []
+    var apiURLs = ['http://127.0.0.1:5000/api']
 
-    // get api urls
-    db.collection('APIs').onSnapshot(querySnapshot => {
-      apiURLs = []
-      querySnapshot.forEach(doc => apiURLs.push(doc.data().url))
-    })
+    // // get api urls
+    // db.collection('APIs').onSnapshot(querySnapshot => {
+    //   apiURLs = []
+    //   querySnapshot.forEach(doc => apiURLs.push(doc.data().url))
+    // })
 
     // refs to UI elems
     let elems
@@ -248,6 +248,7 @@
             },
             body: JSON.stringify(payload)
           })
+          console.log(response)
           const imageDataURL = await response.text()
           if(imageDataURL.substring(0, 4) != 'data') {
             // alert error
